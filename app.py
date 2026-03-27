@@ -259,7 +259,7 @@ def fetch_upcoming_events(lat, lng, tzid):
     r = requests.get("https://www.hebcal.com/hebcal", params=params, timeout=10)
     r.raise_for_status()
     return r.json()
-    
+
 @st.cache_data(ttl=3600)
 def get_coordinates(zip_code=None, city=None):
     """Get lat/lng/tzid from Hebcal location data."""
@@ -408,7 +408,82 @@ if location_input:
         </div>
         """, unsafe_allow_html=True)
         st.markdown(f'<div class="city-badge"><span>📍 {city_label}</span></div>', unsafe_allow_html=True)
+        # ── Upcoming events ───────────────────────────────────────────────
+        st.markdown('<hr class="divider">', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Upcoming Jewish Calendar</div>', unsafe_allow_html=True)
 
+        try:
+            lat, lng, tzid = get_coordinates(
+                zip_code=query if is_zip(query) else None,
+                city=query if not is_zip(query) else None,
+            )
+            if lat and lng:
+                events_raw = fetch_upcoming_events(lat, lng, tzid)
+                items = events_raw.get("items", [])
+
+                def categorize(item):
+                    cat = item.get("category", "")
+                    subcat = item.get("subcat", "")
+                    if cat == "roshchodesh":
+                        return "roshchodesh"
+                    elif cat == "cholhamoed":
+                        return "cholhamoed"
+                    elif subcat == "major" or cat == "holiday":
+                        return "major"
+                    else:
+                        return "minor"
+
+                rows_html = '<div class="events-list">'
+                shown = 0
+                for item in items:
+                    title = item.get("title", "")
+                    hebrew = item.get("hebrew", "")
+                    date_str = item.get("date", "")
+                    if not date_str:
+                        continue
+                    try:
+                        dt = datetime.fromisoformat(date_str[:10])
+                        date_fmt = dt.strftime("%b %-d")
+                    except Exception:
+                        continue
+
+                    dot_class = categorize(item)
+
+                    candle_time = ""
+                    if "candles" in item:
+                        try:
+                            tz = pytz.timezone(tzid if tzid != "auto" else "UTC")
+                            cdt = datetime.fromisoformat(item["candles"]).astimezone(tz)
+                            candle_time = f"🕯️ {cdt.strftime('%-I:%M %p')}"
+                        except Exception:
+                            pass
+
+                    rows_html += f"""
+                    <div class="event-row">
+                        <span class="event-date">{date_fmt}</span>
+                        <span class="event-dot dot-{dot_class}"></span>
+                        <span class="event-name">{title} <span class="event-hebrew">{hebrew}</span></span>
+                        <span class="event-candles">{candle_time}</span>
+                    </div>"""
+                    shown += 1
+
+                rows_html += "</div>"
+
+                if shown == 0:
+                    st.markdown('<div style="text-align:center;color:#bbb;font-size:0.85rem;">No upcoming events found.</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div style="display:flex;gap:1rem;justify-content:center;margin-bottom:1rem;flex-wrap:wrap;">
+                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0846a;display:inline-block"></span>Major chag</span>
+                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#a0b090;display:inline-block"></span>Minor holiday</span>
+                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#8aaec0;display:inline-block"></span>Rosh Chodesh</span>
+                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0a870;display:inline-block"></span>Chol HaMoed</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.markdown(rows_html, unsafe_allow_html=True)
+
+        except Exception as e:
+            st.markdown(f'<div style="text-align:center;color:#bbb;font-size:0.8rem;">Could not load calendar events.<br><small>{e}</small></div>', unsafe_allow_html=True)
     except ValueError as ve:
         st.markdown(f'<div class="error-box">⚠️ {ve}</div>', unsafe_allow_html=True)
     except Exception as e:
