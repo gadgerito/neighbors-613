@@ -259,6 +259,7 @@ def fetch_upcoming_events(lat, lng, tzid):
     r = requests.get("https://www.hebcal.com/hebcal", params=params, timeout=10)
     r.raise_for_status()
     return r.json()
+    
 @st.cache_data(ttl=3600)
 def get_coordinates(zip_code=None, city=None):
     """Get lat/lng/tzid from Hebcal location data."""
