@@ -198,7 +198,22 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 .dot-minor { background: #a0b090; }
 .dot-roshchodesh { background: #8aaec0; }
 .dot-cholhamoed { background: #c0a870; }
-
+.cal-grid { width:100%; border-collapse:collapse; max-width:480px; margin:0 auto; }
+.cal-grid th { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em;
+               color:#aaa; padding:0.4rem 0; text-align:center; font-weight:500; }
+.cal-grid th:last-child { color:#c0846a; }
+.cal-cell { width:14.28%; text-align:center; vertical-align:top;
+            padding:0.35rem 0.1rem; border-radius:8px; }
+.cal-day { font-size:0.82rem; color:#333; font-weight:400; }
+.cal-day.today { background:#1a1a1a; color:#fff; border-radius:50%;
+                 width:24px; height:24px; line-height:24px;
+                 display:inline-block; font-weight:500; }
+.cal-day.empty { color:#ddd; }
+.cal-dots { display:flex; justify-content:center; gap:2px; margin-top:3px; flex-wrap:wrap; }
+.cal-dot { width:5px; height:5px; border-radius:50%; display:inline-block; }
+.cal-event-label { font-size:0.55rem; color:#888; line-height:1.2;
+                   margin-top:2px; max-width:48px; margin:2px auto 0; }
+                   
 footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
@@ -466,7 +481,7 @@ if location_input:
         """, unsafe_allow_html=True)
         st.markdown(f'<div class="city-badge"><span>📍 {city_label}</span></div>', unsafe_allow_html=True)
        # ── Jewish Calendar ───────────────────────────────────────────────
-        st.markdown('<hr class="divider">', unsafe_allow_html=True)
+        st.markdown(grid_html, unsafe_allow_html=True)
         st.markdown('<div class="section-header">Jewish Calendar</div>', unsafe_allow_html=True)
 
         try:
@@ -558,25 +573,7 @@ if location_input:
                 cal_mod.setfirstweekday(6)
                 weeks = cal_mod.monthcalendar(cal_year, cal_month)
 
-                grid_html = """
-                <style>
-                .cal-grid { width:100%; border-collapse:collapse; max-width:480px; margin:0 auto; }
-                .cal-grid th { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em;
-                               color:#aaa; padding:0.4rem 0; text-align:center; font-weight:500; }
-                .cal-grid th:last-child { color:#c0846a; }
-                .cal-cell { width:14.28%; text-align:center; vertical-align:top;
-                            padding:0.35rem 0.1rem; border-radius:8px; }
-                .cal-day { font-size:0.82rem; color:#333; font-weight:400; }
-                .cal-day.today { background:#1a1a1a; color:#fff; border-radius:50%;
-                                 width:24px; height:24px; line-height:24px;
-                                 display:inline-block; font-weight:500; }
-                .cal-day.empty { color:#ddd; }
-                .cal-dots { display:flex; justify-content:center; gap:2px; margin-top:3px; flex-wrap:wrap; }
-                .cal-dot { width:5px; height:5px; border-radius:50%; display:inline-block; }
-                .cal-event-label { font-size:0.55rem; color:#888; line-height:1.2;
-                                   margin-top:2px; max-width:48px; margin:2px auto 0; }
-                </style>
-                <table class="cal-grid"><thead><tr>
+                grid_html = """<table class="cal-grid"><thead><tr>
                 """
                 for d in day_names:
                     grid_html += f"<th>{d}</th>"
