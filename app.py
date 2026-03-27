@@ -627,6 +627,7 @@ if location_input:
 
         except Exception as e:
             st.markdown(f'<div style="text-align:center;color:#bbb;font-size:0.8rem;">Could not load calendar.<br><small>{e}</small></div>', unsafe_allow_html=True)
+
 else:
     st.markdown('<div style="text-align:center; color:#bbb; padding: 3rem 0; font-size:0.9rem;">Enter a city or zip code above to get started</div>', unsafe_allow_html=True)
 
