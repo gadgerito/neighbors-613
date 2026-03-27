@@ -626,6 +626,9 @@ if location_input:
                 st.markdown('<div style="text-align:center;color:#ccc;font-size:0.85rem;padding:1rem;">No Jewish holidays this month</div>', unsafe_allow_html=True)
 
        except Exception as e:
+            st.markdown(f'<div style="text-align:center;color:#bbb;font-size:0.8rem;">Could not load calendar.<br><small>{e}</small></div>', unsafe_allow_html=True)
+
+    except Exception as e:
         st.markdown(f'<div class="error-box">⚠️ Could not load data.<br><small>{e}</small></div>', unsafe_allow_html=True)
 
 else:
