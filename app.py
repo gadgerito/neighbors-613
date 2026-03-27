@@ -465,9 +465,9 @@ if location_input:
         </div>
         """, unsafe_allow_html=True)
         st.markdown(f'<div class="city-badge"><span>📍 {city_label}</span></div>', unsafe_allow_html=True)
-        # ── Upcoming events ───────────────────────────────────────────────
+       # ── Jewish Calendar ───────────────────────────────────────────────
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
-        st.markdown('<div class="section-header">Upcoming Jewish Calendar</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-header">Jewish Calendar</div>', unsafe_allow_html=True)
 
         try:
             lat, lng, tzid = get_coordinates(
@@ -475,69 +475,174 @@ if location_input:
                 city=query if not is_zip(query) else None,
             )
             if lat and lng:
+                # Month navigation
+                today = datetime.now()
+                if "cal_month" not in st.session_state:
+                    st.session_state.cal_month = today.month
+                if "cal_year" not in st.session_state:
+                    st.session_state.cal_year = today.year
+
+                col_prev, col_title, col_next = st.columns([1, 3, 1])
+                with col_prev:
+                    if st.button("←", use_container_width=True):
+                        if st.session_state.cal_month == 1:
+                            st.session_state.cal_month = 12
+                            st.session_state.cal_year -= 1
+                        else:
+                            st.session_state.cal_month -= 1
+                        st.rerun()
+                with col_title:
+                    st.markdown(f"""
+                    <div style="text-align:center; font-family:'DM Serif Display',serif;
+                                font-size:1.2rem; color:#1a1a1a; padding: 0.3rem 0;">
+                        {datetime(st.session_state.cal_year, st.session_state.cal_month, 1).strftime("%B %Y")}
+                    </div>""", unsafe_allow_html=True)
+                with col_next:
+                    if st.button("→", use_container_width=True):
+                        if st.session_state.cal_month == 12:
+                            st.session_state.cal_month = 1
+                            st.session_state.cal_year += 1
+                        else:
+                            st.session_state.cal_month += 1
+                        st.rerun()
+
+                # Fetch events for this month
+                import calendar
+                cal_year = st.session_state.cal_year
+                cal_month = st.session_state.cal_month
+                first_day = datetime(cal_year, cal_month, 1).date()
+                last_day = datetime(cal_year, cal_month, calendar.monthrange(cal_year, cal_month)[1]).date()
+
                 events_raw = fetch_upcoming_events(lat, lng, tzid)
                 items = events_raw.get("items", [])
 
-                def categorize(item):
-                    cat = item.get("category", "")
-                    subcat = item.get("subcat", "")
-                    if cat == "roshchodesh":
-                        return "roshchodesh"
-                    elif cat == "cholhamoed":
-                        return "cholhamoed"
-                    elif subcat == "major" or cat == "holiday":
-                        return "major"
-                    else:
-                        return "minor"
-
-                rows_html = '<div class="events-list">'
-                shown = 0
+                # Build a dict of day → list of events
+                events_by_day = {}
                 for item in items:
-                    title = item.get("title", "")
-                    hebrew = item.get("hebrew", "")
                     date_str = item.get("date", "")
                     if not date_str:
                         continue
                     try:
-                        dt = datetime.fromisoformat(date_str[:10])
-                        date_fmt = dt.strftime("%b %-d")
+                        dt = datetime.fromisoformat(date_str[:10]).date()
                     except Exception:
                         continue
+                    if first_day <= dt <= last_day:
+                        cat = item.get("category", "")
+                        subcat = item.get("subcat", "")
+                        if cat == "roshchodesh":
+                            dot = "roshchodesh"
+                        elif cat == "cholhamoed":
+                            dot = "cholhamoed"
+                        elif subcat == "major" or cat == "holiday":
+                            dot = "major"
+                        else:
+                            dot = "minor"
+                        events_by_day.setdefault(dt.day, []).append({
+                            "title": item.get("title", ""),
+                            "dot": dot,
+                        })
 
-                    dot_class = categorize(item)
+                # Render calendar grid
+                dot_colors = {
+                    "major":       "#c0846a",
+                    "minor":       "#a0b090",
+                    "roshchodesh": "#8aaec0",
+                    "cholhamoed":  "#c0a870",
+                }
 
-                    candle_time = ""
-                    if "candles" in item:
-                        try:
-                            tz = pytz.timezone(tzid if tzid != "auto" else "UTC")
-                            cdt = datetime.fromisoformat(item["candles"]).astimezone(tz)
-                            candle_time = f"🕯️ {cdt.strftime('%-I:%M %p')}"
-                        except Exception:
-                            pass
+                weeks = calendar.monthcalendar(cal_year, cal_month)
+                day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Shabbat"]
 
-                    rows_html += f"""
-                    <div class="event-row">
-                        <span class="event-date">{date_fmt}</span>
-                        <span class="event-dot dot-{dot_class}"></span>
-                        <span class="event-name">{title} <span class="event-hebrew">{hebrew}</span></span>
-                        <span class="event-candles">{candle_time}</span>
-                    </div>"""
-                    shown += 1
+                # Reorder so week starts Sunday
+                import calendar as cal_mod
+                cal_mod.setfirstweekday(6)
+                weeks = cal_mod.monthcalendar(cal_year, cal_month)
 
-                rows_html += "</div>"
+                grid_html = """
+                <style>
+                .cal-grid { width:100%; border-collapse:collapse; max-width:480px; margin:0 auto; }
+                .cal-grid th { font-size:0.65rem; text-transform:uppercase; letter-spacing:0.08em;
+                               color:#aaa; padding:0.4rem 0; text-align:center; font-weight:500; }
+                .cal-grid th:last-child { color:#c0846a; }
+                .cal-cell { width:14.28%; text-align:center; vertical-align:top;
+                            padding:0.35rem 0.1rem; border-radius:8px; }
+                .cal-day { font-size:0.82rem; color:#333; font-weight:400; }
+                .cal-day.today { background:#1a1a1a; color:#fff; border-radius:50%;
+                                 width:24px; height:24px; line-height:24px;
+                                 display:inline-block; font-weight:500; }
+                .cal-day.empty { color:#ddd; }
+                .cal-dots { display:flex; justify-content:center; gap:2px; margin-top:3px; flex-wrap:wrap; }
+                .cal-dot { width:5px; height:5px; border-radius:50%; display:inline-block; }
+                .cal-event-label { font-size:0.55rem; color:#888; line-height:1.2;
+                                   margin-top:2px; max-width:48px; margin:2px auto 0; }
+                </style>
+                <table class="cal-grid"><thead><tr>
+                """
+                for d in day_names:
+                    grid_html += f"<th>{d}</th>"
+                grid_html += "</tr></thead><tbody>"
 
-                if shown == 0:
-                    st.markdown('<div style="text-align:center;color:#bbb;font-size:0.85rem;">No upcoming events found.</div>', unsafe_allow_html=True)
+                for week in weeks:
+                    grid_html += "<tr>"
+                    for day in week:
+                        if day == 0:
+                            grid_html += '<td class="cal-cell"><span class="cal-day empty">·</span></td>'
+                        else:
+                            is_today = (day == today.day and cal_month == today.month and cal_year == today.year)
+                            day_class = "cal-day today" if is_today else "cal-day"
+                            evs = events_by_day.get(day, [])
+                            dots_html = ""
+                            label_html = ""
+                            if evs:
+                                dots_html = '<div class="cal-dots">'
+                                for ev in evs[:3]:
+                                    color = dot_colors.get(ev["dot"], "#ccc")
+                                    dots_html += f'<span class="cal-dot" style="background:{color}"></span>'
+                                dots_html += "</div>"
+                                # Show first event name truncated
+                                short = evs[0]["title"][:12] + ("…" if len(evs[0]["title"]) > 12 else "")
+                                label_html = f'<div class="cal-event-label">{short}</div>'
+                            grid_html += f"""
+                            <td class="cal-cell">
+                                <span class="{day_class}">{day}</span>
+                                {dots_html}
+                                {label_html}
+                            </td>"""
+                    grid_html += "</tr>"
+                grid_html += "</tbody></table>"
+                st.markdown(grid_html, unsafe_allow_html=True)
+
+                # Legend
+                st.markdown("""
+                <div style="display:flex;gap:1rem;justify-content:center;margin-top:1rem;flex-wrap:wrap;">
+                    <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0846a;display:inline-block"></span>Major chag</span>
+                    <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#a0b090;display:inline-block"></span>Minor holiday</span>
+                    <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#8aaec0;display:inline-block"></span>Rosh Chodesh</span>
+                    <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0a870;display:inline-block"></span>Chol HaMoed</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+                # Events list for selected month
+                if events_by_day:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    for day_num in sorted(events_by_day.keys()):
+                        for ev in events_by_day[day_num]:
+                            color = dot_colors.get(ev["dot"], "#ccc")
+                            date_label = datetime(cal_year, cal_month, day_num).strftime("%b %-d")
+                            st.markdown(f"""
+                            <div style="display:flex;align-items:center;gap:0.75rem;
+                                        padding:0.5rem 0;border-bottom:1px solid #f0ede8;
+                                        max-width:480px;margin:0 auto;">
+                                <span style="min-width:48px;font-size:0.75rem;color:#999;">{date_label}</span>
+                                <span style="width:8px;height:8px;border-radius:50%;
+                                             background:{color};flex-shrink:0;display:inline-block;"></span>
+                                <span style="font-size:0.86rem;color:#333;">{ev['title']}</span>
+                            </div>""", unsafe_allow_html=True)
                 else:
-                    st.markdown("""
-                    <div style="display:flex;gap:1rem;justify-content:center;margin-bottom:1rem;flex-wrap:wrap;">
-                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0846a;display:inline-block"></span>Major chag</span>
-                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#a0b090;display:inline-block"></span>Minor holiday</span>
-                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#8aaec0;display:inline-block"></span>Rosh Chodesh</span>
-                        <span style="font-size:0.7rem;color:#888;display:flex;align-items:center;gap:0.3rem;"><span style="width:8px;height:8px;border-radius:50%;background:#c0a870;display:inline-block"></span>Chol HaMoed</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    st.markdown(rows_html, unsafe_allow_html=True)
+                    st.markdown('<div style="text-align:center;color:#ccc;font-size:0.85rem;padding:1rem;">No Jewish holidays this month</div>', unsafe_allow_html=True)
+
+        except Exception as e:
+            st.markdown(f'<div style="text-align:center;color:#bbb;font-size:0.8rem;">Could not load calendar.<br><small>{e}</small></div>', unsafe_allow_html=True)
 
         except Exception as e:
             st.markdown(f'<div style="text-align:center;color:#bbb;font-size:0.8rem;">Could not load calendar events.<br><small>{e}</small></div>', unsafe_allow_html=True)
