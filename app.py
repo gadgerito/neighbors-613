@@ -13,6 +13,30 @@ st.set_page_config(
     layout="centered",
 )
 
+# ── Password gate ─────────────────────────────────────────────────────────────
+APP_PASSWORD = "shabbatshalom"  # change this to whatever you want
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.markdown("""
+    <div style="text-align:center; padding: 4rem 0 1rem 0;">
+        <div style="font-family:'DM Serif Display',serif; font-size:1.6rem; color:#1a1a1a;">✡️ Shabbat Times</div>
+        <div style="color:#aaa; font-size:0.85rem; margin-top:0.5rem;">Enter the password to continue</div>
+    </div>
+    """, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        pw = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
+        if st.button("Enter", use_container_width=True):
+            if pw == APP_PASSWORD:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+    st.stop()
+    
 # ── Temporary in-memory message store (replace with MongoDB later) ─────────────
 # TODO: swap this section out for MongoDB when ready.
 # Each message: {"username": str, "tag": str, "text": str, "timestamp": datetime}
