@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from datetime import datetime
 import pytz
+import anthropic
 
 # ── Config ────────────────────────────────────────────────────────────────────
 HAVDALAH_MIN = 50
@@ -282,6 +283,36 @@ def get_coordinates(zip_code=None, city=None):
         place = results[0]
         # rough tzid from nominatim (Hebcal will handle conversion)
         return float(place["lat"]), float(place["lon"]), "auto"
+@st.cache_data(ttl=3600)
+def get_parsha_ai_content(parsha_name: str):
+    """Get AI-generated parsha summary and halacha fun fact from Claude."""
+    client = anthropic.Anthropic(api_key=st.secrets["anthropic"]["api_key"])
+    message = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=1000,
+        messages=[
+            {
+                "role": "user",
+                "content": f"""For Parashat {parsha_name}, please provide two things:
+
+1. SUMMARY: A warm, accessible 3-4 sentence summary of the parsha — what happens, why it matters, what themes it raises. Write for a general Jewish audience, not just scholars.
+
+2. HALACHA_FACT: One surprising, interesting, or little-known halacha (Jewish law) that connects to this parsha or its themes. Make it genuinely interesting — something people would say "wow, I didn't know that!" Keep it to 2-3 sentences. Start with the halacha itself, then briefly explain the connection.
+
+Respond in exactly this format:
+SUMMARY: [your summary here]
+HALACHA_FACT: [your fun fact here]"""
+            }
+        ],
+    )
+    raw = message.content[0].text
+    summary, halacha = "", ""
+    for line in raw.splitlines():
+        if line.startswith("SUMMARY:"):
+            summary = line.replace("SUMMARY:", "").strip()
+        elif line.startswith("HALACHA_FACT:"):
+            halacha = line.replace("HALACHA_FACT:", "").strip()
+    return summary, halacha
 
 def parse_shabbat(data):
     result = {"parsha": None, "hebrew": None, "shabbat_date": None,
@@ -389,7 +420,33 @@ if location_input:
             cards_html += f'<a class="resource-card" href="{url}" target="_blank" rel="noopener noreferrer"><div class="r-icon">{icon}</div><div class="r-name">{name}</div><div class="r-desc">{desc}</div></a>'
         cards_html += "</div>"
         st.markdown(cards_html, unsafe_allow_html=True)
+# ── AI Parsha content ─────────────────────────────────────────────
+        if parsha != "—":
+            try:
+                with st.spinner(""):
+                    ai_summary, ai_halacha = get_parsha_ai_content(parsha)
 
+                if ai_summary:
+                    st.markdown(f"""
+                    <div style="max-width:480px; margin: 0 auto 1.5rem auto; font-size:0.9rem;
+                                color:#444; line-height:1.7; text-align:center; font-style:italic;">
+                        {ai_summary}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                if ai_halacha:
+                    st.markdown(f"""
+                    <div style="max-width:480px; margin: 0 auto 1.5rem auto; background:#fffdf7;
+                                border: 1px solid #e8e2d0; border-radius:12px; padding:1rem 1.2rem;
+                                box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+                        <div style="font-size:0.68rem; letter-spacing:0.12em; text-transform:uppercase;
+                                    color:#b0956a; margin-bottom:0.4rem;">⚖️ Halacha Fun Fact</div>
+                        <div style="font-size:0.86rem; color:#444; line-height:1.6;">{ai_halacha}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            except Exception:
+                pass  # fail silently — rest of app still works
         # Times
         st.markdown('<hr class="divider">', unsafe_allow_html=True)
         st.markdown('<div class="section-header">Shabbat Times</div>', unsafe_allow_html=True)
