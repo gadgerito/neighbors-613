@@ -36,7 +36,7 @@ if not st.session_state.authenticated:
             else:
                 st.error("Incorrect password.")
     st.stop()
-    
+
 # ── Temporary in-memory message store (replace with MongoDB later) ─────────────
 # TODO: swap this section out for MongoDB when ready.
 # Each message: {"username": str, "tag": str, "text": str, "timestamp": datetime}
@@ -174,6 +174,30 @@ html, body, [class*="css"] { font-family: 'DM Sans', sans-serif; }
 .city-badge span { display: inline-block; background: #f0ede8; color: #666; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; padding: 0.25rem 0.8rem; border-radius: 99px; }
 
 .error-box { background: #fff5f5; border: 1px solid #fcc; border-radius: 8px; padding: 1rem; color: #c00; font-size: 0.88rem; text-align: center; }
+/* Upcoming events */
+.events-list { max-width: 480px; margin: 0 auto; }
+.event-row {
+    display: flex; align-items: center; gap: 0.75rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid #f0ede8;
+}
+.event-row:last-child { border-bottom: none; }
+.event-date {
+    min-width: 72px; font-size: 0.75rem;
+    color: #999; letter-spacing: 0.03em;
+}
+.event-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+}
+.event-name { font-size: 0.88rem; color: #1a1a1a; flex: 1; }
+.event-hebrew { font-size: 0.75rem; color: #aaa; }
+.event-candles { font-size: 0.75rem; color: #888; margin-left: auto; white-space: nowrap; }
+.dot-major { background: #c0846a; }
+.dot-minor { background: #a0b090; }
+.dot-roshchodesh { background: #8aaec0; }
+.dot-cholhamoed { background: #c0a870; }
+
 footer { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
@@ -212,6 +236,51 @@ def fetch_by_city(city):
     data = r.json()
     data["_resolved_name"] = short_name
     return data
+@st.cache_data(ttl=3600)
+def fetch_upcoming_events(lat, lng, tzid):
+    """Fetch all Jewish holidays for the rest of the Jewish year."""
+    today = datetime.now().date()
+    # Jewish year ends in September/October — fetch through end of next Tishrei
+    end_year = today.year + 1 if today.month >= 9 else today.year
+    params = {
+        "v": 1,
+        "cfg": "json",
+        "latitude": lat,
+        "longitude": lng,
+        "tzid": tzid,
+        "maj": "on",       # major holidays
+        "min": "on",       # minor holidays
+        "mod": "on",       # modern holidays
+        "roshchodesh": "on",
+        "cholhamoed": "on",
+        "start": today.isoformat(),
+        "end": f"{end_year}-09-30",
+    }
+    r = requests.get("https://www.hebcal.com/hebcal", params=params, timeout=10)
+    r.raise_for_status()
+    return r.json()
+@st.cache_data(ttl=3600)
+def get_coordinates(zip_code=None, city=None):
+    """Get lat/lng/tzid from Hebcal location data."""
+    if zip_code:
+        params = {"cfg": "json", "zip": zip_code, "m": 18, "b": 18}
+        r = requests.get("https://www.hebcal.com/shabbat", params=params, timeout=10)
+        r.raise_for_status()
+        loc = r.json().get("location", {})
+        return loc.get("latitude"), loc.get("longitude"), loc.get("tzid", "America/New_York")
+    else:
+        geo = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": city, "format": "json", "limit": 1},
+            headers={"User-Agent": "shabbat-times-app"},
+            timeout=10,
+        )
+        results = geo.json()
+        if not results:
+            return None, None, "UTC"
+        place = results[0]
+        # rough tzid from nominatim (Hebcal will handle conversion)
+        return float(place["lat"]), float(place["lon"]), "auto"
 
 def parse_shabbat(data):
     result = {"parsha": None, "hebrew": None, "shabbat_date": None,
