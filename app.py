@@ -17,20 +17,8 @@ st.set_page_config(
 # TODO: swap this section out for MongoDB when ready.
 # Each message: {"username": str, "tag": str, "text": str, "timestamp": datetime}
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {
-            "username": "Rivka",
-            "tag": "🕊️ Shabbat Shalom",
-            "text": "Wishing everyone a peaceful and restful Shabbat! 🕯️",
-            "timestamp": datetime(2025, 3, 21, 10, 30),
-        },
-        {
-            "username": "Moshe",
-            "tag": "📖 Dvar Torah",
-            "text": "This week's parsha always makes me think about the importance of community. What does everyone think about the connection between the mishkan and our own homes?",
-            "timestamp": datetime(2025, 3, 21, 14, 15),
-        },
-    ]
+    st.session_state.messages = []
+        
 
 def save_message(username, tag, text):
     """Save a message. Replace body with MongoDB insert when ready."""
