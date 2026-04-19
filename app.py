@@ -267,8 +267,11 @@ def fetch_upcoming_events(lat, lng, tzid):
         "maj": "on",       # major holidays
         "min": "on",       # minor holidays
         "mod": "on",       # modern holidays
-        "roshchodesh": "on",
-        "cholhamoed": "on",
+        "nx": "on",        # Rosh Chodesh
+        "mf": "on",        # minor fasts
+        "ss": "on",        # special shabbatot
+        "s": "on",         # parashat hashavua
+        "c": "on",         # candle-lighting (needed to enable cholhamoed dates)
         "start": today.isoformat(),
         "end": f"{end_year}-09-30",
     }
