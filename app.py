@@ -270,8 +270,6 @@ def fetch_upcoming_events(lat, lng, tzid):
         "nx": "on",        # Rosh Chodesh
         "mf": "on",        # minor fasts
         "ss": "on",        # special shabbatot
-        "s": "on",         # parashat hashavua
-        "c": "on",         # candle-lighting (needed to enable cholhamoed dates)
         "start": today.isoformat(),
         "end": f"{end_year}-09-30",
     }
@@ -552,16 +550,19 @@ if location_input:
                     if first_day <= dt <= last_day:
                         cat = item.get("category", "")
                         subcat = item.get("subcat", "")
+                        title = item.get("title", "")
+                        if cat in ("candles", "havdalah", "parashat", "zmanim"):
+                            continue
                         if cat == "roshchodesh":
                             dot = "roshchodesh"
-                        elif cat == "cholhamoed":
+                        elif "CH''M" in title or "(CH" in title:
                             dot = "cholhamoed"
-                        elif subcat == "major" or cat == "holiday":
+                        elif subcat == "major":
                             dot = "major"
                         else:
                             dot = "minor"
                         events_by_day.setdefault(dt.day, []).append({
-                            "title": item.get("title", ""),
+                            "title": title,
                             "dot": dot,
                         })
 
